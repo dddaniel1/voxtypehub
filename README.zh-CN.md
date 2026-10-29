@@ -1,6 +1,6 @@
 # Voxtype Hub
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+[English](README.md) | [简体中文](README.zh-CN.md) | [项目主页](https://dddaniel1.github.io/voxtypehub/)
 
 Voxtype Hub 是一个 Omarchy Shell 插件，用于管理 Voxtype 转写模式、大模型后处理、语音模型和本地使用记录。
 

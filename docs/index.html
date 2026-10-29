@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Voxtype Hub brings speech profiles, optional AI cleanup, and local history to your Omarchy bar.">
+  <meta name="theme-color" content="#dce5dc">
+  <title>Voxtype Hub — Your voice, in its element</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+  <header class="header wrap">
+    <a class="brand" href="#top" aria-label="Voxtype Hub home"><span class="brand-icon" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span>voxtype<span class="brand-light">hub</span></span></a>
+    <nav aria-label="Main navigation"><a href="#how" data-i18n="nav_how">How it works</a><a href="#features" data-i18n="nav_features">Features</a><a href="#setup" data-i18n="nav_setup">Get started</a></nav>
+    <div class="header-actions"><button id="language" type="button" aria-label="切换到中文">中文 <span aria-hidden="true">↗</span></button><a class="repo-link" href="https://github.com/dddaniel1/voxtypehub">GitHub <span aria-hidden="true">↗</span></a></div>
+  </header>
+  <main id="main">
+    <section class="hero wrap" id="top">
+      <div class="hero-top"><p class="eyebrow"><span class="dot"></span><span data-i18n="eyebrow">AN OMARCHY SHELL PLUGIN</span></p><p class="hero-index">V / 01</p></div>
+      <h1 data-i18n-html="headline">Your voice,<br><em>in its element.</em></h1>
+      <div class="hero-bottom"><p class="hero-description" data-i18n="intro">A little more control over the words you speak. Switch profiles, choose a model, and shape your transcriptions without leaving your desktop.</p><a class="primary" href="https://github.com/dddaniel1/voxtypehub#installation"><span data-i18n="get">Get Voxtype Hub</span><span aria-hidden="true">↗</span></a></div>
+      <div class="signal" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="hero-foot"><span data-i18n="hero_foot">FROM THE BAR, INTO YOUR WORKFLOW</span><span>↓ &nbsp; SCROLL TO EXPLORE</span></div>
+    </section>
+    <section class="story wrap" id="how"><div class="section-label"><span>01 /</span><span data-i18n="how_label">THE IDEA</span></div><div class="story-copy"><h2 data-i18n-html="story_title">Speak naturally.<br><em>Keep the control.</em></h2><p data-i18n="story_body">Voxtype does the listening. Voxtype Hub gives you a place in the Omarchy bar to manage what happens next—from the active input profile to optional AI post-processing.</p><a class="text-link" href="https://github.com/dddaniel1/voxtypehub#using-the-panel"><span data-i18n="explore">Explore the documentation</span> <span aria-hidden="true">↗</span></a></div></section>
+    <section class="feature-zone" id="features"><div class="wrap"><div class="feature-header"><div class="section-label"><span>02 /</span><span data-i18n="features_label">THE TOOLKIT</span></div><h2 data-i18n-html="features_title">A better place<br><em>for the details.</em></h2><p data-i18n="features_intro">Small controls, right where you need them.</p></div>
+      <div class="feature-list">
+        <article class="feature"><span class="feature-num">01</span><div><h3 data-i18n="f1_title">A profile for the moment.</h3><p data-i18n="f1_body">Create and switch input profiles, each with its own editable prompt. Make room for coding, conversation, or your own workflow.</p></div><span class="feature-symbol" aria-hidden="true">Aa</span></article>
+        <article class="feature"><span class="feature-num">02</span><div><h3 data-i18n="f2_title">Your choice of provider.</h3><p data-i18n="f2_body">Configure OpenAI-compatible providers, pick a model, and switch between saved configurations. Turn post-processing off when you want the original transcription.</p></div><span class="feature-symbol circles" aria-hidden="true"><i></i><i></i></span></article>
+        <article class="feature"><span class="feature-num">03</span><div><h3 data-i18n="f3_title">Keep track, locally.</h3><p data-i18n="f3_body">Browse recent post-processing history and see your activity over time. Choose from the speech models already installed in Voxtype.</p></div><span class="feature-symbol bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span></article>
+      </div></div></section>
+    <section class="privacy wrap"><div class="section-label"><span>03 /</span><span data-i18n="privacy_label">A CLEAR BOUNDARY</span></div><div><h2 data-i18n-html="privacy_title">Your words.<br><em>Your choices.</em></h2><p data-i18n="privacy_body">Settings, keys, prompts, and history stay on your machine. If AI post-processing is enabled, transcription text is sent to the provider you choose. You can switch it off to use the original transcription.</p></div><div class="privacy-mark" aria-hidden="true"><span>LOCAL</span><div class="mark-lines">↗</div><small>YOUR DESKTOP<br>YOUR WORKFLOW</small></div></section>
+    <section class="setup" id="setup"><div class="wrap setup-inner"><div class="section-label"><span>04 /</span><span data-i18n="setup_label">GET STARTED</span></div><h2 data-i18n-html="setup_title">Make it yours.<br><em>Start with the docs.</em></h2><p data-i18n="setup_body">For Omarchy and Voxtype users. Follow the repository instructions to install the plugin and configure post-processing.</p><a class="primary primary-light" href="https://github.com/dddaniel1/voxtypehub#installation"><span data-i18n="read_install">Read installation guide</span><span aria-hidden="true">↗</span></a><p class="setup-note" data-i18n="setup_note">The current helper paths target the original installation and may need adjustment on other systems.</p></div></section>
+  </main>
+  <footer class="footer wrap"><a class="brand" href="#top"><span class="brand-icon" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span>voxtype<span class="brand-light">hub</span></span></a><p data-i18n="footer">A small companion for Voxtype on Omarchy.</p><a href="https://github.com/dddaniel1/voxtypehub">GitHub ↗</a></footer>
+</body>
+</html>

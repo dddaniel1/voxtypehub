@@ -1,6 +1,6 @@
 # Voxtype Hub
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+[English](README.md) | [简体中文](README.zh-CN.md) | [Website](https://dddaniel1.github.io/voxtypehub/)
 
 Voxtype Hub is an Omarchy Shell plugin for managing Voxtype transcription profiles, AI post-processing, speech models, and local usage history.
 
