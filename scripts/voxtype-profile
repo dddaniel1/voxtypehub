@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -eu
+file="${XDG_CONFIG_HOME:-$HOME/.config}/voxtype/active-profile"
+case "${1:-}" in
+  get) if [[ -f "$file" ]]; then cat "$file"; else printf 'general\n'; fi ;;
+  set) PROFILE_VALUE="${2:-}" PROFILE_FILE="$file" python3 -c '
+import json, os, pathlib, sys
+value = os.environ["PROFILE_VALUE"]
+base = pathlib.Path(os.environ["PROFILE_FILE"]).parent
+try: custom = json.loads((base / "profiles.json").read_text())
+except (OSError, ValueError): custom = []
+try: allowed = [p["id"] for p in json.loads((base / "profiles-v2.json").read_text())]
+except (OSError, ValueError): allowed = ["general", "code", "chat"] + [p["id"] for p in custom]
+if value not in allowed: sys.exit(1)
+(base / "active-profile").write_text(value + "\n")
+' ;;
+  *) exit 1 ;;
+esac

@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+import datetime,json,os,pathlib,sqlite3,subprocess,sys,tempfile,uuid,urllib.error,urllib.request
+from urllib.parse import urlsplit, urlunsplit
+base=pathlib.Path.home()/'.config/voxtype'
+def load(path, default):
+    try: return json.loads(path.read_text())
+    except (OSError, ValueError): return default
+def save(path, data):
+    fd, tmp=tempfile.mkstemp(dir=base,prefix='.voxtype-')
+    try:
+        with os.fdopen(fd,'w') as f: f.write(data)
+        os.replace(tmp,path)
+    finally:
+        if os.path.exists(tmp): os.unlink(tmp)
+def profiles():
+    defaults=[{'id':'general','label':'通用'},{'id':'code','label':'编程'},{'id':'chat','label':'聊天'}]+load(base/'profiles.json',[])
+    return load(base/'profiles-v2.json',defaults)
+
+def providers(defaults):
+    data=load(base/'providers.json',None)
+    if data is not None: return data
+    old=load(base/'provider.json',defaults)
+    return {'active':'legacy','items':[dict(old,id='legacy')]}
+
+def public_providers(data):
+    return {'active':data['active'],'items':data['items']}
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+def fetch_models(url, key):
+    parsed=urlsplit(url)
+    suffix='/chat/completions'
+    if parsed.scheme!='https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or not parsed.path.rstrip('/').endswith(suffix):
+        raise ValueError('API 地址须为 HTTPS 的 /chat/completions 地址')
+    path=parsed.path.rstrip('/')[:-len(suffix)]
+    dashscope=parsed.hostname in ('dashscope.aliyuncs.com','dashscope-intl.aliyuncs.com','dashscope-us.aliyuncs.com','cn-hongkong.dashscope.aliyuncs.com') or parsed.hostname.endswith('.maas.aliyuncs.com')
+    if dashscope: path='/api/v1'
+    endpoint=urlunsplit((parsed.scheme,parsed.netloc,path+'/models','',''))
+    opener=urllib.request.build_opener(NoRedirect())
+    ids=set()
+    try:
+        for page in range(1,51):
+            target=endpoint+('?capabilities=TG&page_size=100&page_no='+str(page) if dashscope else '')
+            request=urllib.request.Request(target,headers={'Authorization':'Bearer '+key,'Accept':'application/json'})
+            with opener.open(request,timeout=15) as response: data=json.load(response)
+            if dashscope:
+                output=data['output']; items=output['models']; total=output['total']; field='model'
+            else:
+                items=data['data']; total=len(items); field='id'
+            if not isinstance(items,list): raise ValueError('invalid response')
+            ids.update(item[field] for item in items if isinstance(item,dict) and isinstance(item.get(field),str) and item[field])
+            if not dashscope or page*100>=total: return sorted(ids)
+            if not items: raise ValueError('incomplete response')
+        raise ValueError('too many pages')
+    except (urllib.error.URLError, ValueError, KeyError, TypeError, OSError):
+        raise ValueError('无法获取模型列表，请检查密钥、网络或供应商接口；也可手动输入模型')
+
+def current_speech_model(model_data):
+    try:
+        engine=json.loads(subprocess.run(['voxtype','config','get','engine','--json'],capture_output=True,text=True,timeout=10,check=True).stdout)['value']
+        model=json.loads(subprocess.run(['voxtype','config','get',engine+'.model','--json'],capture_output=True,text=True,timeout=10,check=True).stdout)['value']
+        candidates=model_data['engines'].get(engine,{}).get('models',[])
+        return next((m['download_arg'] for m in candidates if m.get('installed') and (m.get('name')==model or m.get('download_arg')==model)), '')
+    except (subprocess.SubprocessError, ValueError, KeyError, TypeError): return ''
+
+def statistics(days, today=None):
+    if days not in (7,30,90,0): raise ValueError('无效时间范围')
+    today=today or datetime.date.today()
+    start=today-datetime.timedelta(days=days-1) if days else None
+    counts={}; trend={}; total=success=characters=0
+    path=base/'history.sqlite3'
+    if path.exists():
+        with sqlite3.connect('file:'+str(path)+'?mode=ro',uri=True) as db:
+            for created,profile,output,ok in db.execute('SELECT created,profile,output,success FROM history'):
+                try: day=datetime.date.fromisoformat(str(created)[:10])
+                except ValueError: continue
+                if day>today or (start and day<start): continue
+                total+=1; success+=bool(ok); characters+=len(output or '')
+                category=profile or 'other'
+                counts[category]=counts.get(category,0)+1
+                if days==7: bucket=day.isoformat()
+                elif days in (30,90): bucket=(day-datetime.timedelta(days=day.weekday())).isoformat()
+                else: bucket=day.strftime('%Y-%m')
+                trend[bucket]=trend.get(bucket,0)+1
+    if days==7:
+        keys=[(today-datetime.timedelta(days=i)).isoformat() for i in range(6,-1,-1)]
+    elif days in (30,90):
+        first=start-datetime.timedelta(days=start.weekday())
+        last=today-datetime.timedelta(days=today.weekday())
+        keys=[(first+datetime.timedelta(days=7*i)).isoformat() for i in range((last-first).days//7+1)]
+    else:
+        month=today.year*12+today.month-1
+        keys=[f'{(month-i)//12:04d}-{(month-i)%12+1:02d}' for i in range(11,-1,-1)]
+    return {'total':total,'success':success,'characters':characters,'profiles':counts,
+            'trend':[{'label':key,'count':trend.get(key,0)} for key in keys],
+            'trend_unit':'日' if days==7 else ('周（周一）' if days else '月')}
+
+def run(req):
+    action=req.get('action')
+    defaults={'name':'DeepSeek','url':'https://api.deepseek.com/chat/completions','model':'deepseek-flash'}
+    if action=='load':
+        result={'postprocess_enabled':(base/'postprocess-enabled').read_text().strip() != '0' if (base/'postprocess-enabled').exists() else True,'profiles':profiles(),'prompts':load(base/'prompts.json',{}),'providers':public_providers(providers(defaults)),'profile':(base/'active-profile').read_text().strip() if (base/'active-profile').exists() else 'general'}
+        p=subprocess.run(['voxtype','info','models','--json'],capture_output=True,text=True,timeout=10,check=True)
+        model_data=json.loads(p.stdout)
+        result['models']=[m['download_arg'] for e in model_data['engines'].values() for m in e['models'] if m['installed']]
+        result['current_model']=current_speech_model(model_data)
+        if (base/'history.sqlite3').exists():
+            with sqlite3.connect('file:'+str(base/'history.sqlite3')+'?mode=ro',uri=True) as db:
+                result['history']=[{'id':i,'date':a,'profile':b,'output':c,'success':bool(d)} for i,a,b,c,d in db.execute('SELECT id,created,profile,output,success FROM history ORDER BY id DESC LIMIT 200')]
+        else: result['history']=[]
+        return result
+    if action=='delete_history':
+        ident=req.get('id')
+        if not isinstance(ident,int) or isinstance(ident,bool) or ident<1: raise ValueError('无效记录')
+        path=base/'history.sqlite3'
+        if not path.exists(): raise ValueError('记录不存在')
+        with sqlite3.connect(path) as db:
+            result=db.execute('DELETE FROM history WHERE id=?',(ident,))
+            if result.rowcount!=1: raise ValueError('记录不存在')
+        return {'id':ident}
+    if action=='postprocess':
+        enabled=req.get('enabled')
+        if not isinstance(enabled,bool): raise ValueError('无效的开关状态')
+        save(base/'postprocess-enabled','1\n' if enabled else '0\n')
+        return {'enabled':enabled}
+    if action=='statistics':
+        return statistics(req.get('days',7))
+    if action=='profile':
+        if req['value'] not in [p['id'] for p in profiles()]: raise ValueError('无效模式')
+        save(base/'active-profile',req['value']+'\n')
+    elif action=='add_profile':
+        name=req.get('name','').strip()
+        if not name or len(name)>24 or any(ord(c)<32 for c in name) or '<' in name or '>' in name: raise ValueError('模式名称须为 1 到 24 个字符，且不能包含控制字符或尖括号')
+        current=profiles()
+        if any(item['label']==name for item in current): raise ValueError('模式名称已存在')
+        ident='custom_'+uuid.uuid4().hex
+        prompts=load(base/'prompts.json',{})
+        prompts[ident]=prompts.get('general') or '请整理输入的文字，保持原意。'
+        save(base/'prompts.json',json.dumps(prompts,ensure_ascii=False,indent=2))
+        current.append({'id':ident,'label':name})
+        save(base/'profiles-v2.json',json.dumps(current,ensure_ascii=False,indent=2))
+        save(base/'active-profile',ident+'\n')
+        return {'profiles':current,'id':ident,'prompt':prompts[ident]}
+    elif action=='rename_profile':
+        ident=req.get('id',''); name=req.get('name','').strip(); current=profiles()
+        if not name or len(name)>24 or any(ord(c)<32 for c in name) or '<' in name or '>' in name: raise ValueError('模式名称须为 1 到 24 个字符，且不能包含控制字符或尖括号')
+        item=next((x for x in current if x['id']==ident),None)
+        if not item: raise ValueError('模式不存在')
+        if any(x['id']!=ident and x['label']==name for x in current): raise ValueError('模式名称已存在')
+        item['label']=name
+        save(base/'profiles-v2.json',json.dumps(current,ensure_ascii=False,indent=2))
+        return {'profiles':current,'id':ident}
+    elif action=='delete_profile':
+        ident=req.get('id',''); current=profiles()
+        if not any(x['id']==ident for x in current): raise ValueError('模式不存在')
+        if len(current)<=1: raise ValueError('请至少保留一个输入模式')
+        remaining=[x for x in current if x['id']!=ident]
+        active_path=base/'active-profile'
+        active=active_path.read_text().strip() if active_path.exists() else 'general'
+        if active==ident: active=remaining[0]['id']; save(active_path,active+'\n')
+        save(base/'profiles-v2.json',json.dumps(remaining,ensure_ascii=False,indent=2))
+        prompts=load(base/'prompts.json',{}); prompts.pop(ident,None)
+        save(base/'prompts.json',json.dumps(prompts,ensure_ascii=False,indent=2))
+        return {'profiles':remaining,'id':active,'prompt':prompts.get(active,'')}
+    elif action=='prompt':
+        if req['profile'] not in [p['id'] for p in profiles()] or not req['text'].strip(): raise ValueError('提示词不能为空或模式不存在')
+        data=load(base/'prompts.json',{}); data[req['profile']]=req['text']; save(base/'prompts.json',json.dumps(data,ensure_ascii=False,indent=2))
+    elif action=='provider':
+        from urllib.parse import urlparse
+        name,url,model,key=(req.get(k,'').strip() for k in ('name','url','model','key'))
+        u=urlparse(url)
+        if not name or not model or u.scheme!='https' or not u.hostname: raise ValueError('请填写名称、模型和有效的 HTTPS 地址')
+        data=providers(defaults)
+        ident=req.get('id','')
+        old=next((item for item in data['items'] if item['id']==ident),None)
+        if ident and not old: raise ValueError('供应商不存在')
+        if (not old or url!=old.get('url')) and not key: raise ValueError('新供应商或更换地址时请输入密钥')
+        if not ident: ident=uuid.uuid4().hex
+        key_path=base/('deepseek-api-key' if ident=='legacy' else 'provider-key-'+ident)
+        if key: save(key_path,key)
+        item={'id':ident,'name':name,'url':url,'model':model}
+        if old: data['items'][data['items'].index(old)]=item
+        else: data['items'].append(item)
+        data['active']=ident
+        save(base/'providers.json',json.dumps(data,ensure_ascii=False,indent=2))
+        return public_providers(data)
+    elif action=='delete_provider':
+        ident=req.get('id',''); data=providers(defaults)
+        if not any(item['id']==ident for item in data['items']): raise ValueError('供应商不存在')
+        remaining=[item for item in data['items'] if item['id']!=ident]
+        if not remaining: raise ValueError('请至少保留一个供应商')
+        if data['active']==ident: data['active']=remaining[0]['id']
+        data['items']=remaining
+        save(base/'providers.json',json.dumps(data,ensure_ascii=False,indent=2))
+        key_path=base/('deepseek-api-key' if ident=='legacy' else 'provider-key-'+ident)
+        key_path.unlink(missing_ok=True)
+        return public_providers(data)
+    elif action=='provider_models':
+        url=req.get('url','').strip()
+        key=req.get('key','').strip()
+        if not key:
+            ident=req.get('id','')
+            item=next ( (item for item in providers(defaults)['items'] if item['id']==ident), None)
+            if not item or item.get('url')!=url: raise ValueError('请先输入此地址对应的 API 密钥')
+            key_path=base/('deepseek-api-key' if ident=='legacy' else 'provider-key-'+ident)
+            try: key=key_path.read_text().strip()
+            except OSError: raise ValueError('请先输入 API 密钥')
+        if not key: raise ValueError('请先输入 API 密钥')
+        return fetch_models(url,key)
+    elif action=='select_provider':
+        data=providers(defaults)
+        if not any(item['id']==req.get('id') for item in data['items']): raise ValueError('供应商不存在')
+        data['active']=req['id']
+        save(base/'providers.json',json.dumps(data,ensure_ascii=False,indent=2))
+        return public_providers(data)
+    elif action=='model':
+        p=subprocess.run(['voxtype','info','models','--json'],capture_output=True,text=True,timeout=10,check=True)
+        installed=[m['download_arg'] for e in json.loads(p.stdout)['engines'].values() for m in e['models'] if m['installed']]
+        if req['value'] not in installed: raise ValueError('模型未安装')
+        subprocess.run(['voxtype','setup','model','--set',req['value'],'--restart'],capture_output=True,timeout=30,check=True)
+        return {'model':req['value']}
+    else: raise ValueError('无效操作')
+    return {'ok':True}
+if __name__=='__main__':
+    try: print(json.dumps({'ok':True,'data':run(json.load(sys.stdin))},ensure_ascii=False))
+    except Exception as e: print(json.dumps({'ok':False,'error':str(e)},ensure_ascii=False))

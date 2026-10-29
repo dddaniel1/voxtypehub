@@ -1,0 +1,1 @@
+{"schemaVersion":1,"id":"daniel.voxtypehub","name":"Voxtype","version":"1.0.0","author":"Daniel","description":"Open Voxtype settings and show the active profile","kinds":["bar-widget"],"entryPoints":{"barWidget":"BarWidget.qml"},"barWidget":{"displayName":"Voxtype","description":"Voxtype settings","category":"Utility","allowMultiple":false}}

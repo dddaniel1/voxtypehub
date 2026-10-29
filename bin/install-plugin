@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+plugin_dir="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/daniel.voxtypehub"
+bin_dir="$HOME/.local/bin"
+omarchy plugin validate "$root/plugin"
+mkdir -p "$plugin_dir" "$bin_dir"
+cp -R "$root/plugin/." "$plugin_dir/"
+for name in voxtype-panel-backend voxtype-profile voxtype-deepseek; do
+  install -m 700 "$root/scripts/$name" "$bin_dir/$name"
+done
+omarchy-shell shell rescanPlugins
+printf 'Plugin installed. Enable with: omarchy plugin enable daniel.voxtypehub --section right\n'
